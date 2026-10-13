@@ -46,4 +46,4 @@ Estas correcciones viven solo en Laravel. `spec-python/` no se modifica.
 | Evidencias manuales (`recorrido en la feria`, `correcto en móvil y escritorio`) | Reemplazadas por pruebas de Playwright (T-22, T-23) |
 | `DocumentNumber` en el plan pero no en las tareas | Incluido en T-03 y T-06 |
 | `GET /books/{id}/cover` mencionado pero no listado | Incluido en la prueba de contrato de T-16 |
-| Sin código de error para token ausente o vencido | T-16 usa `UNAUTHENTICATED` (401) para estos casos. Se registra como desviación |
+| Sin código de error para token ausente o vencido | T-16 usa `UNAUTHENTICATED` (401). Ver [`api-desviaciones.md`](api-desviaciones.md) D-API-01 |
