@@ -47,3 +47,18 @@ Estas correcciones viven solo en Laravel. `spec-python/` no se modifica.
 | `DocumentNumber` en el plan pero no en las tareas | Incluido en T-03 y T-06 |
 | `GET /books/{id}/cover` mencionado pero no listado | Incluido en la prueba de contrato de T-16 |
 | Sin código de error para token ausente o vencido | T-16 usa `UNAUTHENTICATED` (401). Ver [`api-desviaciones.md`](api-desviaciones.md) D-API-01 |
+
+## Estado y evidencia ejecutada
+
+Verificado el 13 de octubre de 2026. Cada comando se ejecutó y terminó con éxito.
+
+| Tareas | Repositorio | Comando | Resultado |
+|---|---|---|---|
+| T-01 a T-18 | `api` | `php artisan test` | 116 pruebas, 206 aserciones |
+| T-19 | `api` | `vendor/bin/deptrac analyse` | 0 violaciones |
+| T-21 | `tool` | `php seed.php` | 40 libros, 10 socios, 15 préstamos, 3 líneas vencidas, 12 filas en el reporte |
+| T-22 | `app` | `npm run test:e2e` | 3 pruebas |
+| T-23 | `page` | `npm test` | 2 pruebas (375 px y 1280 px) |
+| T-24 | `tool` | `php seed.php --books=5000` y `php bench.php` | p95 de 203 ms con 5 000 libros |
+
+**T-20 queda parcial.** `docker compose config` valida el archivo y el repositorio `infra` no contiene DDL, pero `docker compose up --build` **no se ejecutó**: construir las imágenes exige descargar varios cientos de megabytes y la prueba se hizo con datos móviles.

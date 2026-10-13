@@ -26,3 +26,16 @@ El contrato HTTP se rige por [`spec-python/api-contract.md`](../spec-python/api-
 Las rutas literales deben registrarse **antes** que las que tienen parámetro. Si no, `GET /api/v1/loans/overdue` puede capturarse como `GET /api/v1/loans/{id}` y responder `404` con un id que no es UUID.
 
 - **Dónde se verifica:** T-16 (prueba de contrato con `/loans/overdue`).
+
+## D-API-04 · Reloj de demostración
+
+- **Problema:** T-21 pide que el sembrador cree 3 préstamos vencidos **por la API**. El vencimiento siempre es `loaned_at + 14 días` y `loaned_at` lo pone el reloj del servidor, así que por la API no se puede crear un préstamo que ya esté vencido.
+- **Decisión:** el adaptador `SystemClock` acepta la cabecera `X-Demo-Now` (instante ISO 8601) como «ahora» de esa petición, **solo** si la variable de entorno `LIBRARY_DEMO_CLOCK` vale `true`. Por defecto vale `false` y la cabecera se ignora.
+- **Alcance:** vive en el adaptador del puerto `Clock`. El dominio y la aplicación no cambian. No debe activarse en producción.
+- **Dónde se verifica:** `php artisan test --filter=DemoClockTest` y la ejecución de `php seed.php` en el repositorio `tool`.
+
+## D-API-05 · Un identificador que no es UUID
+
+- **Problema:** el contrato dice que los identificadores son UUID, pero no dice qué responder si la ruta trae otra cosa (`/books/abc`). Sin tratarlo, el motor rechaza el valor y la API respondía 500.
+- **Decisión:** los parámetros de ruta solo aceptan UUID. Cualquier otro valor es una ruta que no existe: **404 `NOT_FOUND`**. En el cuerpo de una petición, un identificador mal formado o una categoría inexistente es **422 `VALIDATION_ERROR`**.
+- **Dónde se verifica:** `php artisan test --testsuite=Contract`.
