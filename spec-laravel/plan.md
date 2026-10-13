@@ -1,58 +1,58 @@
-# Plan técnico — Manager Library (Laravel)
+# Technical plan — Manager Library (Laravel)
 
-Cómo se construye lo que dicen [`spec-python/spec.md`](../spec-python/spec.md), [`spec-python/api-contract.md`](../spec-python/api-contract.md) y [`spec-python/data-model.md`](../spec-python/data-model.md), aplicando [`constitution.md`](constitution.md). Este plan reemplaza las decisiones de `spec-python/plan.md` por sus equivalentes en Laravel.
+How to build what [`spec-python/spec.md`](../spec-python/spec.md), [`spec-python/api-contract.md`](../spec-python/api-contract.md) and [`spec-python/data-model.md`](../spec-python/data-model.md) say, applying [`constitution.md`](constitution.md). This plan replaces the decisions of `spec-python/plan.md` with their Laravel equivalents.
 
-Las filas marcadas con **⚠ desviación** cambian algo del documento compartido. Esa corrección vive **solo en Laravel**; `spec-python/` no se toca.
+Rows marked **⚠ deviation** change something in the shared document. That correction lives **only in Laravel**; `spec-python/` is not touched.
 
-## 1. Decisiones técnicas
+## 1. Technical decisions
 
-| # | Decisión | Elección (Laravel) | Por qué |
+| # | Decision | Choice (Laravel) | Why |
 |---|---|---|---|
-| D-01 | Lenguaje y runtime | PHP 8.3 o superior | Versión mínima que soporta `readonly` y enums nativos del dominio |
-| D-02 | Framework HTTP | Laravel (última versión LTS al iniciar T-01). Rutas en `routes/api.php`, controladores en `app/Adapters/Http/`, validación con `FormRequest` | Contrato en `api-contract.md` |
-| D-03 | Persistencia | Eloquent en `app/Adapters/Persistence/` sobre PostgreSQL 16. Migraciones de Laravel en `database/migrations/` | El esquema es de las migraciones (Artículo V) |
-| D-04 | Concurrencia | **⚠ desviación.** Testigo de versión: columna `version integer not null` en `book`, incrementada en cada escritura, más el `CHECK` `ck_book_available_range` | ADR-002 exige testigo de versión, pero `data-model.md` §3 no lo tiene. Ver §4 |
-| D-05 | Fechas | `CarbonImmutable` solo en adaptadores; el dominio recibe `DateTimeImmutable`. El reloj es el puerto `Clock` | Probar vencimientos sin esperar 14 días |
-| D-06 | Reporte | Una consulta agregada en un adaptador de lectura, detrás de un puerto de lectura | [ADR-004](adr/adr-004-reporte-agregado-y-congelado.md): estable y barato |
-| D-07 | Objetos de valor | `Isbn`, `Quantity`, `DocumentNumber`, `DateRange`: clases `readonly` del dominio, sin tabla propia | Sin identidad. **⚠ desviación:** incluye `DocumentNumber`, que el plan de Python listaba y `tasks.md` no cubría |
-| D-08 | Portadas | `Storage` de Laravel detrás del puerto `CoverStorage`; disco local en desarrollo, S3 en producción. La base guarda solo `cover_key` | Clave opaca, nunca ruta |
-| D-09 | Contraseñas | `Hash::driver('argon2id')` detrás del puerto `PasswordHasher`; el dominio nunca ve la clave en claro | Artículo IX |
-| D-10 | Arranque | Comando Artisan `library:bootstrap-admin` que crea el admin desde `ADMIN_USERNAME` / `ADMIN_PASSWORD`. Se ejecuta en el arranque del contenedor | La base no puede producir el hash |
-| D-11 | Autenticación | JWT HS256, 8 horas, clave en `JWT_SECRET`, detrás del puerto `TokenIssuer`. **Librería pendiente de elegir en T-14** | Simple y sin estado |
-| D-12 | Pruebas | PHPUnit (incluido en Laravel). Pruebas de dominio y aplicación sin framework; integración con PostgreSQL real | Pirámide de pruebas |
-| D-13 | Reglas de capas | **Deptrac**, con el archivo `deptrac.yaml` en la raíz del repo `api`. Se ejecuta como prueba en el CI | Reemplaza a import-linter (Python) y NetArchTest (.NET) |
+| D-01 | Language and runtime | PHP 8.3 or higher | Minimum version that supports the `readonly` classes and native enums of the domain |
+| D-02 | HTTP framework | Laravel 13. Routes in `routes/api.php`, controllers in `app/Adapters/Http/`, validation in the controllers | Contract in `api-contract.md` |
+| D-03 | Persistence | Eloquent in `app/Adapters/Persistence/` on PostgreSQL 16. Laravel migrations in `database/migrations/` | The schema belongs to the migrations (Article V) |
+| D-04 | Concurrency | **⚠ deviation.** Version token: column `version integer not null` on `book`, incremented on every write, plus the `CHECK` `ck_book_available_range` | ADR-002 requires a version token, but `data-model.md` §3 does not have one. See §4 |
+| D-05 | Dates | The domain receives `DateTimeImmutable`. The clock is the `Clock` port | Test due dates without waiting 14 days |
+| D-06 | Report | One aggregate query in a read adapter, behind a read port | [ADR-004](adr/adr-004-reporte-agregado-y-congelado.md): stable and cheap |
+| D-07 | Value objects | `Isbn`, `Quantity`, `DocumentNumber`, `DateRange`: `readonly` domain classes, with no table of their own | No identity. **⚠ deviation:** includes `DocumentNumber`, which the Python plan listed and `tasks.md` did not cover |
+| D-08 | Covers | Laravel `Storage` behind the `CoverStorage` port; local disk in development, S3 in production. The database keeps only `cover_key` | Opaque key, never a path |
+| D-09 | Passwords | `Hash::driver('argon2id')` behind the `PasswordHasher` port; the domain never sees the clear password | Article IX |
+| D-10 | Startup | Artisan command `library:bootstrap-admin`, which creates the admin from `ADMIN_USERNAME` / `ADMIN_PASSWORD`. It runs when the container starts | The database cannot produce the hash |
+| D-11 | Authentication | JWT HS256, 8 hours, key in `JWT_SECRET`, behind the `TokenIssuer` port. Library: `firebase/php-jwt` | Simple and stateless |
+| D-12 | Tests | PHPUnit (included in Laravel). Domain and application tests without the framework; integration against a real PostgreSQL | Test pyramid |
+| D-13 | Layer rules | **Deptrac**, with `deptrac.yaml` at the root of the `api` repo | Replaces import-linter (Python) and NetArchTest (.NET) |
 
-## 2. Configuración por entorno
+## 2. Configuration by environment
 
-| Variable | Obligatoria | Ejemplo |
+| Variable | Required | Example |
 |---|---|---|
-| `DB_CONNECTION` | sí | `pgsql` |
-| `DB_HOST` / `DB_PORT` / `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | sí | `db` / `5432` / `library` / `library` / *(en `.env`)* |
-| `JWT_SECRET` | sí | cadena larga aleatoria |
-| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | sí | definidos en `.env`, nunca en el repo |
-| `COVERS_DISK` | no | `local` (por defecto) |
-| `CORS_ALLOWED_ORIGINS` | sí | `http://localhost:5173` |
+| `DB_CONNECTION` | yes | `pgsql` |
+| `DB_HOST` / `DB_PORT` / `DB_DATABASE` / `DB_USERNAME` / `DB_PASSWORD` | yes | `db` / `5432` / `library` / `library` / *(in `.env`)* |
+| `JWT_SECRET` | yes | long random string |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | yes | defined in `.env`, never in the repo |
+| `CORS_ALLOWED_ORIGINS` | yes | `http://localhost:5173` |
+| `LIBRARY_DEMO_CLOCK` | no | `false` (default). See D-API-04 |
 
-## 3. Estrategia de pruebas
+## 3. Test strategy
 
-| Nivel | Qué prueba | Contra qué | Herramienta |
+| Level | What it tests | Against what | Tool |
 |---|---|---|---|
-| Dominio | Invariantes: máximo 3, vencimiento a 14 días, disponibles en rango | Nada: objetos puros | PHPUnit |
-| Aplicación | Casos de uso: prestar, devolver, reporte | Dobles de los puertos | PHPUnit |
-| Integración | Repositorios y consulta del reporte | PostgreSQL real | PHPUnit + `RefreshDatabase` |
-| Contrato | Cuerpo de error único y códigos de estado | La API levantada | PHPUnit (tests de feature) |
-| Arquitectura | Artículos I, II y III | `deptrac.yaml` | `vendor/bin/deptrac analyse` |
-| Concurrencia | Dos préstamos del último ejemplar | PostgreSQL real | PHPUnit con dos procesos |
+| Domain | Invariants: maximum of 3, due date at 14 days, available copies in range | Nothing: pure objects | PHPUnit |
+| Application | Use cases: lend, return, report | Doubles of the ports | PHPUnit |
+| Integration | Schema, constraints and concurrency | Real PostgreSQL | PHPUnit |
+| Contract | Single error body and status codes | The API | PHPUnit (feature tests) |
+| Architecture | Articles I, II and III | `deptrac.yaml` | `vendor/bin/deptrac analyse` |
+| Concurrency | Two loans of the last copy | Real PostgreSQL | PHPUnit |
 
-## 4. Corrección del testigo de versión (D-04)
+## 4. Correction of the version token (D-04)
 
-ADR-002 y el plan de Python exigen un testigo de versión. El `data-model.md` compartido no lo tiene. En Laravel lo agregamos así:
+ADR-002 and the Python plan require a version token. The shared `data-model.md` does not have one. In Laravel it is added like this:
 
-- `book.version`: `integer`, no nulo, **sin** valor por defecto en la migración (el dominio lo pone en `0` al crear el libro, igual que el resto de valores).
-- Cada escritura sobre el libro usa `UPDATE ... WHERE id = ? AND version = ?` y suma 1 a `version`. Si no afecta ninguna fila, la operación responde `409 BOOK_NOT_AVAILABLE`.
-- Esta columna **no** se lista en `data-model.md`. Queda registrada aquí como desviación y se decide en `docs` más adelante si se incorpora al documento compartido.
+- `book.version`: `integer`, not null, **without** a default value in the migration (the domain sets it to `0` when the book is created, like every other value).
+- Every write on the book uses `UPDATE ... WHERE id = ? AND version = ?` and stores the new version. If no row is affected, the operation answers `409 BOOK_NOT_AVAILABLE`.
+- This column is **not** listed in `data-model.md`. It is recorded here as a deviation.
 
-## 5. Orden de construcción
+## 5. Build order
 
-Esqueleto y salud → migración inicial con semilla → dominio → casos de uso con dobles → adaptadores → API → pruebas de contrato y concurrencia.
-El detalle, con evidencia ejecutable, está en [`tasks.md`](tasks.md) (se escribe en el paso siguiente).
+Skeleton and health → initial migration with seed → domain → use cases with doubles → adapters → API → contract and concurrency tests.
+The detail, with executable evidence, is in [`tasks.md`](tasks.md).

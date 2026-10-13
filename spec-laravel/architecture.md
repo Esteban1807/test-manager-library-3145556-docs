@@ -1,45 +1,45 @@
-# Arquitectura — Manager Library (Laravel)
+# Architecture — Manager Library (Laravel)
 
-Arquitectura **hexagonal** (puertos y adaptadores) sobre Laravel. Las reglas de dependencia son los artículos I a III de [`constitution.md`](constitution.md). El modelo de datos, el contrato de la API y las reglas de negocio son los de [`spec-python/`](../spec-python/).
+**Hexagonal** architecture (ports and adapters) on Laravel. The dependency rules are Articles I to III of [`constitution.md`](constitution.md). The data model, the API contract and the business rules are those of [`spec-python/`](../spec-python/).
 
-## 1. Capas y dependencias
+## 1. Layers and dependencies
 
 ```mermaid
 flowchart LR
-    subgraph Entrada
-      HTTP["app/Adapters/Http<br/>(controladores, FormRequest, Resources)"]
+    subgraph Inbound
+      HTTP["app/Adapters/Http<br/>(controllers, middleware, presenter)"]
     end
-    subgraph Núcleo
-      APP["app/Application<br/>casos de uso + puertos"]
-      DOM["app/Domain<br/>agregados y objetos de valor"]
+    subgraph Core
+      APP["app/Application<br/>use cases + ports"]
+      DOM["app/Domain<br/>aggregates and value objects"]
     end
-    subgraph Salida
-      DB["app/Adapters/Persistence<br/>(Eloquent + migraciones)"]
-      STO["app/Adapters/Storage<br/>portadas"]
-      SEC["app/Adapters/Security<br/>hash y token"]
+    subgraph Outbound
+      DB["app/Adapters/Persistence<br/>(Eloquent + migrations)"]
+      STO["app/Adapters/Storage<br/>covers"]
+      SEC["app/Adapters/Security<br/>hash and token"]
     end
     HTTP --> APP --> DOM
-    DB -. implementa puertos de .-> APP
-    STO -. implementa .-> APP
-    SEC -. implementa .-> APP
+    DB -. implements ports of .-> APP
+    STO -. implements .-> APP
+    SEC -. implements .-> APP
 ```
 
-Las flechas de dependencia apuntan **hacia adentro**. `app/Bootstrap` es el único que ve las dos mitades.
+Dependency arrows point **inward**. `app/Bootstrap` is the only one that sees both halves.
 
-## 2. Reglas de dependencia (Deptrac)
+## 2. Dependency rules (Deptrac)
 
-| Capa | Puede depender de | No puede depender de |
+| Layer | May depend on | May not depend on |
 |---|---|---|
-| `Domain` | nada | `Application`, `Adapters`, `Bootstrap`, `Illuminate\*` |
+| `Domain` | nothing | `Application`, `Adapters`, `Bootstrap`, `Illuminate\*` |
 | `Application` | `Domain` | `Adapters`, `Bootstrap`, `Illuminate\*` |
 | `Adapters` | `Application`, `Domain`, `Illuminate\*` | `Bootstrap` |
 | `Bootstrap` | `Application`, `Adapters`, `Domain`, `Illuminate\*` | — |
 
-La regla de `Application` sin `Illuminate\*` es la que hace real el Artículo II: los casos de uso no conocen Eloquent, `Storage`, `Hash` ni ningún facade.
+The rule that `Application` has no `Illuminate\*` is what makes Article II real: use cases know nothing about Eloquent, `Storage`, `Hash` or any facade.
 
-Las reglas se escriben en `deptrac.yaml` en la raíz del repo `api` y se verifican en T-19. Hasta entonces son una especificación, no una prueba.
+The rules are written in `deptrac.yaml` at the root of the `api` repo and are verified in T-19.
 
-## 3. Estructura de carpetas
+## 3. Folder structure
 
 ```text
 app/
@@ -47,58 +47,61 @@ app/
 ├── Application/
 │   ├── Ports/                 # BookRepository, LoanRepository, MemberRepository, UserRepository,
 │   │                          # ReportReader, Clock, PasswordHasher, TokenIssuer, CoverStorage
-│   └── UseCases/              # LendBooksService, ReturnItemService, CreateBookService, SearchBooksService,
-│                              # OverdueService, MostBorrowedReportService, LoginService, CreateLibrarianService
+│   ├── UseCases/              # LendBooksService, ReturnItemService, CreateBookService, SearchBooksService,
+│   │                          # OverdueService, MostBorrowedReportService, LoginService, CreateLibrarianService
+│   └── Errors/                # application errors, one per error code of the contract
 ├── Adapters/
-│   ├── Http/                  # controladores, FormRequest, Resources, manejador de errores
-│   ├── Persistence/           # repositorios Eloquent, consulta del reporte
-│   ├── Storage/               # portadas en disco o S3
-│   └── Security/              # Argon2id, JWT
+│   ├── Http/                  # controllers, middleware, presenter, error mapping
+│   ├── Persistence/           # Eloquent repositories, report query
+│   ├── Storage/               # covers on disk or S3
+│   ├── Security/              # Argon2id, JWT
+│   └── System/                # clock, id generator
 └── Bootstrap/
-    └── Composition/
-        └── PortBindings.php   # único punto de composición (Artículo III)
+    ├── Composition/
+    │   └── PortBindings.php   # single composition point (Article III)
+    └── Console/               # library:bootstrap-admin
 ```
 
-## 4. Agregados
+## 4. Aggregates
 
-| Raíz | Contiene | Invariantes que defiende |
+| Root | Contains | Invariants it defends |
 |---|---|---|
-| `Book` | `Isbn`, copias totales y disponibles, `version`, baja lógica | disponibles entre 0 y total; total ≥ 1; título no vacío |
-| `Loan` | colección de `LoanItem` | 1 a 3 líneas; sin libro repetido; vencimiento a 14 días; inmutable salvo devolución |
-| `Member` | `DocumentNumber` | documento obligatorio y único |
-| `User` | rol, hash | nombre normalizado; rol en (`admin`, `librarian`) |
+| `Book` | `Isbn`, total and available copies, `version`, logical deletion | available between 0 and total; total ≥ 1; title not empty |
+| `Loan` | collection of `LoanItem` | 1 to 3 lines; no repeated book; due date at 14 days; immutable except for returns |
+| `Member` | `DocumentNumber` | document required and unique |
+| `User` | role, hash | normalized name; role in (`admin`, `librarian`) |
 
-`Loan::addItem()` llama a `Book::withdraw()` antes de añadir la línea: descontar el ejemplar y crear la línea son **una sola operación**, dentro de una transacción de base de datos.
-`Loan::returnItem()` llama a `Book::restock()` una sola vez por línea.
+`Loan::addItem()` calls `Book::withdraw()` before adding the line: taking the copy and creating the line are **a single operation**, inside one database transaction.
+`Loan::returnItem()` calls `Book::restock()` exactly once per line.
 
-## 5. Flujo: registrar un préstamo
+## 5. Flow: registering a loan
 
 ```mermaid
 sequenceDiagram
-    participant C as Cliente
-    participant H as Controlador HTTP
+    participant C as Client
+    participant H as HTTP controller
     participant S as LendBooksService
     participant M as MemberRepository
     participant B as BookRepository
     participant L as LoanRepository
     C->>H: POST /api/v1/loans
-    H->>S: lend(memberId, bookIds)
-    S->>M: obtener socio + líneas sin devolver
-    S->>S: ¿tiene vencidos? ¿supera 3?
-    S->>B: obtener libros por lote (Q3)
-    S->>S: Loan::addItem → Book::withdraw (por cada libro)
-    S->>L: guardar préstamo + libros (transacción, UPDATE ... WHERE version = ?)
-    L-->>S: ok o conflicto de versión
-    S-->>H: préstamo o BOOK_NOT_AVAILABLE
-    H-->>C: 201 o 409
+    H->>S: execute(memberId, bookIds)
+    S->>M: get member + lines not returned
+    S->>S: has overdue lines? over 3?
+    S->>B: get books (Q3)
+    S->>S: Loan::addItem → Book::withdraw (per book)
+    S->>L: save loan + books (transaction, UPDATE ... WHERE version = ?)
+    L-->>S: ok or version conflict
+    S-->>H: loan or BOOK_NOT_AVAILABLE
+    H-->>C: 201 or 409
 ```
 
-Si el `UPDATE` con `version` no afecta filas, el adaptador lanza el error de dominio correspondiente y la transacción se revierte. Ver D-04 en [`plan.md`](plan.md).
+If the `UPDATE` with `version` affects no row, the adapter throws the domain error and the transaction is rolled back. See D-04 in [`plan.md`](plan.md).
 
-## 6. Errores
+## 6. Errors
 
-El dominio y la aplicación lanzan excepciones propias (`BookNotAvailable`, `MemberHasOverdue`, `MemberLimitExceeded`, …). **Solo** el adaptador HTTP las traduce al cuerpo único y al código de estado de [`spec-python/api-contract.md`](../spec-python/api-contract.md). Una excepción de Laravel nunca llega al cliente: el manejador de excepciones de `Adapters/Http` la convierte en el cuerpo de error único.
+The domain and the application throw their own exceptions (`BookNotAvailable`, `MemberHasOverdue`, `MemberLimitExceeded`, …). **Only** the HTTP adapter translates them into the single body and status code of [`spec-python/api-contract.md`](../spec-python/api-contract.md). A Laravel exception never reaches the client: `Adapters/Http/ErrorResponse` turns it into the single error body.
 
-## 7. Qué no hay
+## 7. What is not there
 
-Sin eventos, sin colas, sin caché, sin microservicios, sin multi-tenencia. Se añaden si un requisito lo pide, no antes.
+No events, no queues, no cache, no microservices, no multi-tenancy. They are added if a requirement asks for them, not before.

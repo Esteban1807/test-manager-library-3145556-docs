@@ -1,12 +1,8 @@
-# ADR-001 · El esquema es propiedad de las migraciones de la aplicación
+# ADR-001 · The schema belongs to the application's migrations
 
-- **Estado:** aceptada (adaptada de [`spec-python`](../../spec-python/adr/adr-001-propiedad-del-esquema.md))
-- **Contexto:** el repositorio `infra` levanta un motor de base de datos. Alguien podría poner el DDL en un script de arranque del
-  contenedor y otro en las migraciones de Laravel; con dos dueños, nadie sabe qué esquema corre en producción.
-- **Decisión:** **todo el DDL vive en las migraciones de Laravel** (`database/migrations/`): tablas, índices, restricciones y semilla de
-  categorías. `infra` solo crea el motor vacío, el usuario y el volumen.
-- **Alternativas descartadas:** scripts SQL en `infra/db/init/` (segunda fuente de verdad); `Schema::create` ejecutado al arrancar la
-  aplicación (no deja historial ni reversa).
-- **Consecuencias:** una extensión de Postgres o un índice nuevo se crea en la **misma** migración que lo usa. Un esquema cambiado a
-  mano en el motor es un defecto, no una variante.
-- **Cómo se verifica:** `infra` no contiene `CREATE TABLE`; `php artisan test --filter=SchemaTest` (T-02) comprueba el esquema contra `data-model.md` §3.
+- **Status:** accepted (adapted from [`spec-python`](../../spec-python/adr/adr-001-propiedad-del-esquema.md))
+- **Context:** the `infra` repository starts a database engine. Someone could put the DDL in a container startup script and someone else in the Laravel migrations; with two owners, nobody knows which schema runs in production.
+- **Decision:** **all DDL lives in the Laravel migrations** (`database/migrations/`): tables, indexes, constraints and the category seed. `infra` only creates the empty engine, the user and the volume.
+- **Discarded alternatives:** SQL scripts in `infra/db/init/` (a second source of truth); `Schema::create` executed when the application starts (leaves no history and no rollback).
+- **Consequences:** a Postgres extension or a new index is created in the **same** migration that uses it. A schema changed by hand in the engine is a defect, not a variant.
+- **How it is verified:** `infra` contains no `CREATE TABLE`; `php artisan test --filter=SchemaTest` (T-02) checks the schema against `data-model.md` §3.

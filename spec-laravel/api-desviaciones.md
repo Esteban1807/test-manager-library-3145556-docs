@@ -1,41 +1,41 @@
-# Desviaciones y aclaraciones del contrato de la API — Laravel
+# Deviations and clarifications of the API contract — Laravel
 
-El contrato HTTP se rige por [`spec-python/api-contract.md`](../spec-python/api-contract.md), que sigue siendo la fuente compartida. Este archivo registra lo que **Laravel hace distinto o aclara**, sin modificar el documento compartido.
+The HTTP contract is governed by [`spec-python/api-contract.md`](../spec-python/api-contract.md), which remains the shared source. This file records what **Laravel does differently or clarifies**, without modifying the shared document.
 
-## D-API-01 · Código de error para token ausente, inválido o vencido
+## D-API-01 · Error code for a missing, invalid or expired token
 
-- **Problema:** `api-contract.md` §2 define `INVALID_CREDENTIALS` (401), pero solo para el login. No hay código para un 401 por token.
-- **Decisión:** agregar `UNAUTHENTICATED` con estado **401**. Se usa cuando falta el token, el token es inválido o está vencido.
-- **Formato:** el mismo cuerpo de error único de §1, con `code: "UNAUTHENTICATED"` y `message` en español.
-- **Dónde se verifica:** T-16 (prueba de contrato).
+- **Problem:** `api-contract.md` §2 defines `INVALID_CREDENTIALS` (401), but only for login. There is no code for a 401 caused by the token.
+- **Decision:** add `UNAUTHENTICATED` with status **401**. It is used when the token is missing, invalid or expired.
+- **Format:** the same single error body of §1, with `code: "UNAUTHENTICATED"` and `message` in Spanish.
+- **Where it is verified:** T-16 (contract test).
 
-## D-API-02 · Endpoint de lectura de la portada
+## D-API-02 · Endpoint to read the cover
 
-- **Problema:** `api-contract.md` §3.4 menciona `GET /books/{id}/cover` en el texto de la portada, pero no aparece en la tabla de endpoints.
-- **Decisión:** se añade a la tabla de endpoints de libros con rol **autenticado**. Devuelve el binario de la portada o `404`.
-- **Dónde se verifica:** T-16 (prueba de contrato recorre todas las rutas).
+- **Problem:** `api-contract.md` §3.4 mentions `GET /books/{id}/cover` in the text about covers, but it does not appear in the endpoint table.
+- **Decision:** it is added to the book endpoints for any **authenticated** role. It returns the cover binary or `404`.
+- **Where it is verified:** T-16 (the contract test walks every route).
 
-## D-API-03 · Prefijo de la ruta de salud
+## D-API-03 · Prefix of the health route
 
-- **Problema:** `api-contract.md` §3.1 escribe `GET /health` sin prefijo, pero §1 dice que la base de todas las rutas es `/api/v1`.
-- **Decisión:** la ruta real es **`GET /api/v1/health`**. Aplica la regla general de la base.
-- **Dónde se verifica:** T-01.
+- **Problem:** `api-contract.md` §3.1 writes `GET /health` without a prefix, but §1 says the base of every route is `/api/v1`.
+- **Decision:** the real route is **`GET /api/v1/health`**. The general rule of the base applies.
+- **Where it is verified:** T-01.
 
-## Regla de implementación · Orden de rutas
+## Implementation rule · Route order
 
-Las rutas literales deben registrarse **antes** que las que tienen parámetro. Si no, `GET /api/v1/loans/overdue` puede capturarse como `GET /api/v1/loans/{id}` y responder `404` con un id que no es UUID.
+Literal routes must be registered **before** the ones with a parameter. Otherwise `GET /api/v1/loans/overdue` could be captured as `GET /api/v1/loans/{id}`.
 
-- **Dónde se verifica:** T-16 (prueba de contrato con `/loans/overdue`).
+- **Where it is verified:** T-16 (contract test with `/loans/overdue`).
 
-## D-API-04 · Reloj de demostración
+## D-API-04 · Demo clock
 
-- **Problema:** T-21 pide que el sembrador cree 3 préstamos vencidos **por la API**. El vencimiento siempre es `loaned_at + 14 días` y `loaned_at` lo pone el reloj del servidor, así que por la API no se puede crear un préstamo que ya esté vencido.
-- **Decisión:** el adaptador `SystemClock` acepta la cabecera `X-Demo-Now` (instante ISO 8601) como «ahora» de esa petición, **solo** si la variable de entorno `LIBRARY_DEMO_CLOCK` vale `true`. Por defecto vale `false` y la cabecera se ignora.
-- **Alcance:** vive en el adaptador del puerto `Clock`. El dominio y la aplicación no cambian. No debe activarse en producción.
-- **Dónde se verifica:** `php artisan test --filter=DemoClockTest` y la ejecución de `php seed.php` en el repositorio `tool`.
+- **Problem:** T-21 asks the seeder to create 3 overdue loans **through the API**. The due date is always `loaned_at + 14 days` and `loaned_at` is set by the server clock, so a loan that is already overdue cannot be created through the API.
+- **Decision:** the `SystemClock` adapter accepts the `X-Demo-Now` header (ISO 8601 instant) as the "now" of that request, **only** if the environment variable `LIBRARY_DEMO_CLOCK` is `true`. It is `false` by default and the header is ignored.
+- **Scope:** it lives in the adapter of the `Clock` port. The domain and the application do not change. It must not be enabled in production.
+- **Where it is verified:** `php artisan test --filter=DemoClockTest` and running `php seed.php` in the `tool` repository.
 
-## D-API-05 · Un identificador que no es UUID
+## D-API-05 · An identifier that is not a UUID
 
-- **Problema:** el contrato dice que los identificadores son UUID, pero no dice qué responder si la ruta trae otra cosa (`/books/abc`). Sin tratarlo, el motor rechaza el valor y la API respondía 500.
-- **Decisión:** los parámetros de ruta solo aceptan UUID. Cualquier otro valor es una ruta que no existe: **404 `NOT_FOUND`**. En el cuerpo de una petición, un identificador mal formado o una categoría inexistente es **422 `VALIDATION_ERROR`**.
-- **Dónde se verifica:** `php artisan test --testsuite=Contract`.
+- **Problem:** the contract says identifiers are UUIDs, but it does not say what to answer if the route carries something else (`/books/abc`). Left untreated, the engine rejects the value and the API answered 500.
+- **Decision:** route parameters only accept UUIDs. Any other value is a route that does not exist: **404 `NOT_FOUND`**. In a request body, a malformed identifier or a category that does not exist is **422 `VALIDATION_ERROR`**.
+- **Where it is verified:** `php artisan test --testsuite=Contract`.

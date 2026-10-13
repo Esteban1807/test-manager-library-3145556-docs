@@ -1,38 +1,38 @@
-# Arquitectura en una página — Manager Library (Laravel)
+# Architecture on one page — Manager Library (Laravel)
 
-Para leer en cinco minutos antes de abrir el resto. El detalle está en [`architecture.md`](architecture.md) y las decisiones en [`plan.md`](plan.md).
+To read in five minutes before opening the rest. The detail is in [`architecture.md`](architecture.md) and the decisions in [`plan.md`](plan.md).
 
-## El sistema en una imagen
+## The system in one picture
 
 ```mermaid
 flowchart TB
-    U["Bibliotecario / Admin"] --> APP["app (React)<br/>frontend"]
-    V["Visitante"] --> PAGE["page<br/>sitio público estático"]
-    APP -->|"HTTP /api/v1"| API["api<br/>backend Laravel (PHP)"]
-    API --> PG[("PostgreSQL 16<br/>esquema library")]
-    API --> COV[("Portadas<br/>disco / S3")]
-    TOOL["tool<br/>sembrador de demostración"] -->|"usa la API"| API
-    INFRA["infra<br/>contenedores y motor vacío"] -.-> PG
+    U["Librarian / Admin"] --> APP["app (React)<br/>frontend"]
+    V["Visitor"] --> PAGE["page<br/>static public site"]
+    APP -->|"HTTP /api/v1"| API["api<br/>Laravel backend (PHP)"]
+    API --> PG[("PostgreSQL 16<br/>schema library")]
+    API --> COV[("Covers<br/>disk / S3")]
+    TOOL["tool<br/>demo seeder"] -->|"uses the API"| API
+    INFRA["infra<br/>containers and empty engine"] -.-> PG
     INFRA -.-> API
 ```
 
-## Los seis repositorios y su papel
+## The six repositories and their role
 
-| Repo | Papel | Se prueba con |
+| Repo | Role | Tested with |
 |---|---|---|
-| `docs` | La especificación | Que esta lectura baste para construir |
-| `api` | Reglas de negocio y contrato HTTP en Laravel | PHPUnit (dominio, aplicación, contrato y concurrencia) y Deptrac (capas) |
-| `app` | Pantallas de operación en React | Playwright: login → prestar → devolver → reporte |
-| `page` | Presentación pública, sin llamar a la API | Playwright en 375 px y 1280 px |
-| `infra` | `docker compose up` y la base vacía | Que arranca con un solo comando y no tiene tablas |
-| `tool` | Datos de demostración por la API | Que `/loans/overdue` y el reporte tienen datos reales |
+| `docs` | The specification | That reading it is enough to build |
+| `api` | Business rules and HTTP contract in Laravel | PHPUnit (domain, application, contract and concurrency) and Deptrac (layers) |
+| `app` | Operation screens in React | Playwright: login → lend → return → report |
+| `page` | Public presentation, without calling the API | Playwright at 375 px and 1280 px |
+| `infra` | `docker compose up` and the empty database | That it starts with one command and has no tables |
+| `tool` | Demo data through the API | That `/loans/overdue` and the report have real data |
 
-## Las cinco ideas que sostienen el diseño
+## The five ideas that hold the design
 
-1. **El préstamo es un hecho inmutable**; solo cambia `returned_at` de una línea.
-2. **Los ejemplares se descuentan y se devuelven dentro de la misma operación** que crea o cierra la línea.
-3. **El estado se calcula**: `open`, `overdue` o `closed` no están en la base.
-4. **Lo congelado no sigue al catálogo**: el reporte de octubre no cambia porque en noviembre se renombre un libro.
-5. **La base es la última barrera**: si el `CHECK` de ejemplares salta, algo escribió fuera del sistema.
+1. **A loan is an immutable fact**; only the `returned_at` of a line changes.
+2. **Copies are taken and returned within the same operation** that creates or closes the line.
+3. **Status is calculated**: `open`, `overdue` or `closed` are not in the database.
+4. **What is frozen does not follow the catalog**: the October report does not change because a book is renamed in November.
+5. **The database is the last barrier**: if the `CHECK` on copies fires, something wrote outside the system.
 
-Y una regla de Laravel: **las dependencias apuntan hacia el dominio**. Deptrac lo verifica: `Domain` no conoce a nadie, `Application` solo conoce el dominio, y solo `Adapters` y `Bootstrap` tocan el framework.
+And one Laravel rule: **dependencies point toward the domain**. Deptrac verifies it: `Domain` knows nobody, `Application` only knows the domain, and only `Adapters` and `Bootstrap` touch the framework.

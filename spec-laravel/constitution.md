@@ -1,80 +1,82 @@
-# Constitución — Manager Library (Laravel)
+# Constitution — Manager Library (Laravel)
 
-Principios innegociables del proyecto en **PHP 8.x con Laravel** y **React**. Son los mismos 12 artículos de [`spec-python/constitution.md`](../spec-python/constitution.md), con su verificación traducida a las herramientas de este stack. Un principio que nadie puede comprobar es una intención: cada artículo trae **cómo se verifica**. Un cambio que viole un artículo se rechaza sin discutir el resto.
+Non-negotiable principles of the project in **PHP 8.x with Laravel** and **React**. They are the same 12 articles as [`spec-python/constitution.md`](../spec-python/constitution.md), with their verification translated to the tools of this stack. A principle nobody can check is only an intention: every article states **how it is verified**. A change that violates an article is rejected without discussing the rest.
 
-Lo que define el negocio (historias, reglas, API y modelo de datos) no vive aquí: vive en [`spec-python/spec.md`](../spec-python/spec.md), [`spec-python/api-contract.md`](../spec-python/api-contract.md) y [`spec-python/data-model.md`](../spec-python/data-model.md), que son la fuente compartida de los tres stacks.
+What defines the business (stories, rules, API and data model) does not live here: it lives in [`spec-python/spec.md`](../spec-python/spec.md), [`spec-python/api-contract.md`](../spec-python/api-contract.md) and [`spec-python/data-model.md`](../spec-python/data-model.md), which are the source shared by the three stacks.
 
 ---
 
-## Artículo I — El dominio no depende de nada
+## Article I — The domain depends on nothing
 
-`app/Domain/` no importa ningún otro namespace del proyecto ni del framework: nada de `Illuminate\*`, Eloquent, facades, helpers de Laravel ni librerías de terceros. Solo PHP puro: clases `final` y `readonly`, enums nativos, excepciones propias.
+`app/Domain/` imports no other namespace of the project or of the framework: no `Illuminate\*`, no Eloquent, no facades, no Laravel helpers, no third-party libraries. Only plain PHP: `final` and `readonly` classes, native enums, its own exceptions.
 
-**Por qué:** es lo único que permite probar las invariantes sin base de datos, sin servidor y sin contenedor, y cambiar de ORM o de framework sin tocar reglas.
-**Verificación:** una regla de Deptrac que prohíbe que `Domain` dependa de `Application`, `Adapters`, `Bootstrap` o `Illuminate`. El análisis falla en el CI si se introduce la dependencia.
+**Why:** it is the only thing that lets the invariants be tested without a database, a server or a container, and lets the ORM or the framework change without touching the rules.
+**Verification:** a Deptrac rule forbids `Domain` from depending on `Application`, `Adapters`, `Bootstrap` or `Illuminate`. The analysis fails in CI if the dependency is introduced.
 
-## Artículo II — El núcleo declara sus puertos; el mundo los implementa
+## Article II — The core declares its ports; the world implements them
 
-La capa de aplicación solo conoce el dominio. Todo lo que necesita del exterior (repositorios, reloj, hash de claves, almacenamiento de portadas, generación de tokens) lo expresa como una **interfaz que ella misma define** en `app/Application/Ports/`. Ningún tipo de Eloquent, de Laravel o de librería aparece en la firma de un puerto.
+The application layer only knows the domain. Everything it needs from outside (repositories, clock, password hashing, cover storage, token generation) is expressed as an **interface that it defines itself** in `app/Application/Ports/`. No Eloquent, Laravel or library type appears in the signature of a port.
 
-**Verificación:** una regla de Deptrac que impide que `Application` importe `Adapters` o `Illuminate\Database\*`. Los tests de aplicación corren con dobles de los puertos y sin referenciar `Adapters`.
+**Verification:** a Deptrac rule prevents `Application` from importing `Adapters` or `Illuminate\Database\*`. Application tests run with test doubles of the ports and never reference `Adapters`.
 
-## Artículo III — Un único punto de composición
+## Article III — A single composition point
 
-Un solo `ServiceProvider` (`app/Bootstrap/Composition/PortBindings.php`) es donde un puerto se encuentra con su adaptador. Fuera de él no se instancia infraestructura: no se usa `new` sobre clases de `Adapters` y no se resuelven adaptadores con `app()` en el resto del código.
+A single `ServiceProvider` (`app/Bootstrap/Composition/PortBindings.php`) is where a port meets its adapter. Outside of it no infrastructure is instantiated: `new` is not used on `Adapters` classes and adapters are not resolved with `app()` in the rest of the code.
 
-**Verificación:** un test de arquitectura que falla si una clase de `Adapters` se instancia fuera de `Bootstrap/Composition/`.
+**Verification:** an architecture test fails if an `Adapters` class is instantiated outside `Bootstrap/Composition/`.
 
-## Artículo IV — SOLID no es decorativo
+## Article IV — SOLID is not decoration
 
-| Principio | Aplicación concreta | Verificación |
+| Principle | Concrete application | Verification |
 |---|---|---|
-| **SRP** | Un caso de uso = una clase en `app/Application/UseCases/`. `LendBooksService` presta y no hace nada más | Una clase con dos razones para cambiar se parte |
-| **OCP** | Cambiar el almacenamiento de portadas (disco → S3) no toca dominio ni aplicación | El adaptador nuevo solo añade una línea en `PortBindings` |
-| **LSP** | Los dobles de test sustituyen al adaptador real sin cambiar expectativas | El mismo test pasa contra el doble y contra el real |
-| **ISP** | Puertos pequeños: `Clock`, `PasswordHasher`, `TokenIssuer`, `CoverStorage` | Ningún implementador deja métodos sin usar |
-| **DIP** | El puerto lo define quien lo consume | Los puertos viven en `app/Application/Ports/` |
+| **SRP** | One use case = one class in `app/Application/UseCases/`. `LendBooksService` lends and does nothing else | A class with two reasons to change is split |
+| **OCP** | Changing cover storage (disk → S3) touches neither domain nor application | The new adapter only adds one line in `PortBindings` |
+| **LSP** | Test doubles replace the real adapter without changing expectations | The same test passes against the double and the real one |
+| **ISP** | Small ports: `Clock`, `PasswordHasher`, `TokenIssuer`, `CoverStorage` | No implementer leaves methods unused |
+| **DIP** | The port is defined by whoever consumes it | Ports live in `app/Application/Ports/` |
 
-## Artículo V — El esquema es propiedad de las migraciones
+## Article V — The schema belongs to the migrations
 
-El repositorio `infra` levanta un motor **vacío**. Todo el DDL (tablas, índices, restricciones, extensiones y semilla) vive en las **migraciones de Laravel** (`database/migrations/`). Ver [ADR-001](adr/adr-001-propiedad-del-esquema.md).
+The `infra` repository starts an **empty** engine. All DDL (tables, indexes, constraints, extensions and seed) lives in the **Laravel migrations** (`database/migrations/`). See [ADR-001](adr/adr-001-propiedad-del-esquema.md).
 
-**Verificación:** `infra` no contiene `CREATE TABLE`.
+**Verification:** `infra` contains no `CREATE TABLE`.
 
-## Artículo VI — Las invariantes que la base puede imponer, la base las impone
+## Article VI — Invariants the database can enforce, the database enforces
 
-Toda invariante expresable en el motor (`CHECK`, `UNIQUE`, FK) se declara en las migraciones, con `->unique()`, `->foreign()` o `DB::statement()` para los `CHECK`. Lo que no está aplicado se marca **pendiente** en `spec-python/data-model.md`; no se promete.
+Every invariant expressible in the engine (`CHECK`, `UNIQUE`, FK) is declared in the migrations, with `->unique()`, `->foreign()` or `DB::statement()` for `CHECK` constraints. What is not applied is marked **pending** in `spec-python/data-model.md`; it is not promised.
 
-**Verificación:** las consultas de `data-model.md` §10 coinciden con lo que declaran las migraciones.
+**Verification:** the queries of `data-model.md` §10 match what the migrations declare.
 
-## Artículo VII — Lo derivado se calcula, no se almacena
+## Article VII — Derived values are calculated, not stored
 
-El estado de un préstamo (`open`, `overdue`, `closed`) y los días de retraso se calculan en el dominio. No hay columna para ellos.
+The status of a loan (`open`, `overdue`, `closed`) and the days late are calculated in the domain. There is no column for them.
 
-**Verificación:** ninguna migración contiene columnas `status` ni `days_late`.
+**Verification:** no migration contains a `status` or `days_late` column.
 
-## Artículo VIII — Los valores congelados no siguen al catálogo
+## Article VIII — Frozen values do not follow the catalog
 
-La línea de préstamo guarda título, ISBN y categoría del instante del préstamo. Ningún reporte los lee del catálogo vivo. Ver [ADR-004](adr/adr-004-reporte-agregado-y-congelado.md).
+A loan line keeps the title, ISBN and category from the moment of the loan. No report reads them from the live catalog. See [ADR-004](adr/adr-004-reporte-agregado-y-congelado.md).
 
-**Verificación:** una prueba que renombra un libro después de prestarlo y comprueba que el reporte conserva el título viejo.
+**Verification:** a test that renames a book after lending it and checks that the report keeps the old title.
 
-## Artículo IX — Ningún secreto entra al repositorio ni a un log
+## Article IX — No secret enters the repository or a log
 
-Ni contraseñas, ni hashes precalculados, ni la clave del token. Todo secreto viene del entorno (`.env`). El `.env` real está en `.gitignore`; solo se versiona `.env.example`.
+No passwords, no precomputed hashes, no token key. Every secret comes from the environment (`.env`). The real `.env` is in `.gitignore`; only `.env.example` is versioned.
 
-**Verificación:** `gitleaks` en el CI, y un test que comprueba que ninguna respuesta HTTP incluye `password` ni `password_hash`.
+**Verification:** `gitleaks` in CI, and a test that checks that no HTTP response includes `password` or `password_hash`.
 
-## Artículo X — Gana el motor
+## Article X — The engine wins
 
-Si el documento de datos y la base discrepan, el documento está roto y se corrige el documento.
+If the data document and the database disagree, the document is broken and the document is corrected.
 
-## Artículo XI — Idioma
+## Article XI — Language
 
-Código, columnas, rutas y namespaces en inglés. Documentación y mensajes al usuario en español (`lang/es/`).
+Code, columns, routes and namespaces in English. Messages shown to the user in Spanish (`lang/es/`).
 
-## Artículo XII — Nada se da por hecho sin evidencia
+> **Deviation:** `spec-python` also requires the documentation to be in Spanish. The documentation of `spec-laravel/` is written in English by decision of the project owner. Messages to the user stay in Spanish.
 
-Una tarea de [`tasks.md`](tasks.md) está terminada cuando su **evidencia existe y se puede ejecutar** con un comando o una prueba automatizada, no cuando «ya está programada» ni cuando alguien la revisó a mano.
+## Article XII — Nothing is taken as done without evidence
 
-**Verificación:** cada tarea de `tasks.md` tiene un comando o una prueba concreta que la demuestra.
+A task in [`tasks.md`](tasks.md) is finished when its **evidence exists and can be executed** with a command or an automated test, not when it is "already programmed" nor when someone reviewed it by hand.
+
+**Verification:** every task in `tasks.md` has a concrete command or test that proves it.
