@@ -60,5 +60,4 @@ Verificado el 13 de octubre de 2026. Cada comando se ejecutó y terminó con éx
 | T-22 | `app` | `npm run test:e2e` | 3 pruebas |
 | T-23 | `page` | `npm test` | 2 pruebas (375 px y 1280 px) |
 | T-24 | `tool` | `php seed.php --books=5000` y `php bench.php` | p95 de 203 ms con 5 000 libros |
-
-**T-20 queda parcial.** `docker compose config` valida el archivo y el repositorio `infra` no contiene DDL, pero `docker compose up --build` **no se ejecutó**: construir las imágenes exige descargar varios cientos de megabytes y la prueba se hizo con datos móviles.
+| T-20 | `infra` | `docker compose up --build` | La base arranca sin tablas; al iniciar la API hay 6 tablas; salud, frontend e inicio de sesión responden 200; el sembrador corre contra los contenedores |
